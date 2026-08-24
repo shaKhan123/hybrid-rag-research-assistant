@@ -4,7 +4,7 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile
     dockerContext: .
-    plan: starter          # adjust to your Render plan; free tier works but cold-starts/sleeps
+    plan: free             # spins down after inactivity + slower cold start, but no billing required
     region: oregon         # adjust to whichever region is closest to you/Qdrant
     healthCheckPath: /health
     envVars:
