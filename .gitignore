@@ -3,5 +3,10 @@ venv/
 .venv/
 __pycache__/
 *.pyc
-pdfs/
+.pytest_cache/
+
+data/raw/pdfs/
 *.pdf
+
+.vscode/
+.idea/
