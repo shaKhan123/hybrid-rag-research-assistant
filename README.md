@@ -6,6 +6,11 @@ from a naive "embed and stuff into context" chatbot: hybrid (dense + sparse)
 retrieval, cross-encoder reranking, query rewriting, automated groundedness
 verification with a LangGraph retry loop, and quantitative evaluation.
 
+Also includes a FastAPI backend and a Streamlit demo frontend that call
+that pipeline over HTTP, a switchable dual LLM provider setup (Groq /
+Gemini) for when one hits its free-tier rate limit, and a Docker image for
+running the API as a single container.
+
 Corpus: ~50 arXiv papers on **retrieval-augmented generation** itself
 (`cs.CL` / `cs.LG`).
 
@@ -15,6 +20,8 @@ Corpus: ~50 arXiv papers on **retrieval-augmented generation** itself
 rag-project/
 ├── .env.example
 ├── .gitignore
+├── .dockerignore
+├── Dockerfile                 # single-container image for the FastAPI backend
 ├── requirements.txt
 ├── README.md
 │
@@ -42,19 +49,30 @@ rag-project/
 │   │   └── hyde.py            # HyDE query rewriting
 │   │
 │   ├── generation/
-│   │   ├── llm_client.py      # shared call_llm() with retry/backoff
+│   │   ├── llm_client.py      # shared call_llm(): dispatches to Groq or Gemini (LLM_PROVIDER),
+│   │   │                      #   one quick retry then fail fast on a rate limit
+│   │   ├── intent.py          # chitchat vs. real-question classification (front-door router)
+│   │   ├── semantic_cache.py  # embedding-similarity cache for repeat/near-duplicate questions
 │   │   ├── prompts.py         # shared prompt-formatting helpers
 │   │   ├── answer.py          # source-grounded answer generation
 │   │   └── groundedness.py    # per-claim groundedness verification
 │   │
 │   ├── graph/
 │   │   ├── state.py           # RAGState TypedDict
-│   │   ├── nodes.py           # LangGraph node functions
-│   │   └── pipeline.py        # the compiled StateGraph + conditional retry edge
+│   │   ├── nodes.py           # LangGraph node functions (incl. classify_intent_node)
+│   │   └── pipeline.py        # the compiled StateGraph + conditional retry/routing edges
 │   │
 │   └── evaluation/
 │       ├── generate_benchmark.py  # auto-generate Q&A pairs from known chunks
 │       └── metrics.py             # Hit Rate@k, MRR, groundedness pass rate
+│
+├── api/                       # FastAPI backend
+│   ├── main.py                 # /query, /health; rate limiting, CORS, error handling
+│   └── schemas.py               # request/response Pydantic models
+│
+├── streamlit_app/              # Streamlit demo frontend (thin client, calls the API over HTTP)
+│   ├── app.py
+│   └── requirements.txt        # kept separate from the API's — no torch/sentence-transformers needed
 │
 └── scripts/                  # thin CLI entrypoints
     ├── run_ingest.py          # fetch -> extract -> chunk -> index, end to end
@@ -85,12 +103,26 @@ Qdrant Cloud (named vectors, server-side RRF fusion)  --------  src/indexing/qdr
    v
    +--------------------- src/graph/pipeline.py (compiled StateGraph) ---------------------+
    |                                                                                        |
+   |  classify_intent --(chitchat)--> end (canned reply, skips everything below)            |
+   |        |                                                                               |
+   |        v (research question)                                                           |
    |  hyde -> retrieve -> rerank -> generate -> groundedness_check                          |
    |            (src/retrieval/)      (src/generation/)      |          |                   |
    |                                                          v          v                   |
    |                                                   retry (loop)   end (return answer)    |
    +----------------------------------------------------------------------------------------+
+   |
+   v
+api/main.py (FastAPI)  --  semantic-cache check (src/generation/semantic_cache.py) short-circuits
+   |                        a close-enough repeat question before it ever reaches the graph above
+   v
+streamlit_app/app.py  --  thin client, POSTs to /query over HTTP
 ```
+
+`call_llm()` (`src/generation/llm_client.py`) sits underneath `hyde`, `generate`, and
+`groundedness_check` — it dispatches to whichever provider `LLM_PROVIDER` names
+(Groq or Gemini) and fails fast with a friendly error after one quick retry on a rate limit,
+rather than hanging on repeated backoff.
 
 ## Setup
 
@@ -105,11 +137,18 @@ Required in `.env`:
 ```
 QDRANT_URL=...
 QDRANT_API_KEY=...
-ANTHROPIC_API_KEY=...
+
+# Both are wired up as interchangeable LLM providers (src/config.py's
+# LLM_PROVIDER, default "groq") - set whichever one(s) you'll use. Setting
+# both lets you flip providers with just an env var + restart if one's
+# free-tier quota gets rate-limited.
+GROQ_API_KEY=...
+GOOGLE_API_KEY=...
+# LLM_PROVIDER=groq   # or "gemini" - defaults to "groq" if unset
 ```
 
-`GOOGLE_API_KEY` is optional — kept in config for easy revert to Gemini if
-desired (see [Provider history](#provider-history) below).
+`ANTHROPIC_API_KEY` is unused by the current pipeline - kept in config only
+for an easy revert.
 
 ## Running the pipeline
 
@@ -134,6 +173,55 @@ python -m scripts.run_eval --score
 python -m scripts.run_eval --score --full
 ```
 
+## Running the API + frontend locally
+
+Two long-running servers, so use two terminals. Both use the same virtual
+environment - the frontend's dependencies (`streamlit`, `requests`) are
+kept in `streamlit_app/requirements.txt`, separate from the main
+`requirements.txt`, since the API doesn't need them and the frontend
+doesn't need the API's heavier ML dependencies (torch, sentence-transformers).
+
+**Terminal 1 - backend (FastAPI):**
+```bash
+pip install -r requirements.txt                 # if not already installed
+uvicorn api.main:app --reload --port 8000
+```
+Wait for `Application startup complete` in the log - that's the embedder +
+reranker models finishing their warmup (see `api/main.py`'s `lifespan`).
+Verify with:
+```bash
+curl http://localhost:8000/health
+```
+should return `"qdrant_connected": true`.
+
+**Terminal 2 - frontend (Streamlit):**
+```bash
+pip install -r streamlit_app/requirements.txt   # if not already installed
+streamlit run streamlit_app/app.py
+```
+Opens `http://localhost:8501` automatically. `RAG_API_URL` defaults to
+`http://localhost:8000` (see `streamlit_app/app.py`) so no extra config is
+needed for local dev.
+
+## Running the API in Docker
+
+Single container, models baked into the image at build time (see
+`Dockerfile` for why - avoids a live Hugging Face Hub dependency at
+container start).
+
+```bash
+docker build -t rag-api .
+docker run --env-file .env -p 8000:8000 rag-api
+curl http://localhost:8000/health
+```
+
+The container reads `$PORT` if set (falls back to 8000), for platforms that
+inject it dynamically. The Streamlit frontend isn't containerized here -
+run it locally per above, pointed at the container via `RAG_API_URL`:
+```bash
+RAG_API_URL=http://localhost:8000 streamlit run streamlit_app/app.py
+```
+
 ## Results so far
 
 **Reranking demonstrably rescues chunks that fusion buries.** A chunk
@@ -149,93 +237,53 @@ a fabricated benchmark statistic, and an invented technical requirement -
 the checker correctly flagged all four unsupported claims individually,
 each with a specific reason.
 
-*(Hit Rate@k / MRR / groundedness pass rate numbers from the full 30-question
-benchmark: run `python -m scripts.run_eval --score --full` and update this
-section with the output.)*
+**Full benchmark run (30 questions, k=20):** Hit Rate@20 = 100%, MRR =
+0.861, groundedness rate = 86.7% (26/30 answers fully grounded). See
+[`data/processed/eval_results.json`](data/processed/eval_results.json)
+for the per-question breakdown; reproduce with
+`python -m scripts.run_eval --score --full`.
 
 ## Known limitations
 
 Documented deliberately rather than fixed silently:
 
-- **Boilerplate filtering is not general.** The chunking-stage filter for
-  author-affiliation blocks was validated against one paper and only
-  removed 1 chunk out of 2,609 in the full corpus - most papers' front
-  matter noise likely isn't caught. A positional heuristic (cut everything
-  before the first real section heading, e.g. "1 Introduction") would
-  generalize far better than the current keyword-matching approach - noted
-  as the next improvement, not yet implemented.
+- **Boilerplate filtering is not general.** Validated against one paper
+  only; a positional heuristic (cut before the first real section heading)
+  would generalize better than the current keyword match, but isn't
+  implemented yet.
 - **PDF math/algorithm notation extracts poorly**, since PyMuPDF reads
   spatial layout, not LaTeX semantics. Accepted as a cost/fidelity
-  tradeoff - prose explaining a method still retrieves and answers
-  correctly even when an adjacent equation is mangled.
-- **HyDE is not a strict improvement.** On an ambiguous query ("how do
-  people fix bad retrieval?"), the LLM interpreted "retrieval" as human
-  cognitive memory retrieval rather than information retrieval, generating
-  a fluent but off-topic hypothetical answer that actively degraded
-  retrieval quality. HyDE has no visibility into corpus content, so
-  ambiguous terms can be confidently resolved in the wrong direction.
-- **Reference-section cutoff uses a simple heading match** - works
-  reliably for a standalone "References" heading, may miss papers with
-  different formatting or column-layout extraction artifacts.
+  tradeoff.
+- **HyDE is not a strict improvement.** With no visibility into corpus
+  content, it can confidently resolve an ambiguous query term in the wrong
+  direction and degrade retrieval quality.
+- **Reference-section cutoff uses a simple heading match** - may miss
+  papers with different formatting or column-layout extraction artifacts.
 - **arXiv's `all:` search matches loosely on constituent words, not the
-  intended phrase.** A query for `all:retrieval augmented generation`
-  also matches papers containing "augment(ed)" and "retrieval" separately,
-  in unrelated senses — e.g. spatial *augmented reality*, *cognitive
-  augmentation* in human-AI interaction research, or "retrieval" meaning
-  human memory recall rather than information retrieval. Auditing the
-  fetched corpus (57 papers) by title found ~8 papers (~14%) were
-  off-topic by this pattern — e.g. "Reality Distortion Room: A Study of
-  User Locomotion Responses to Spatial Augmented Reality Effects" and
-  "Cognitive Dissonance Artificial Intelligence (CD-AI)" — despite
-  matching the search query. This surfaced concretely when an
-  auto-generated benchmark question ("How far does the virtual room move
-  vertically during the Elevation Distortion treatment?") was clearly
-  unrelated to retrieval-augmented generation. Left unfiltered rather than
-  silently cleaned up, since it's a genuine, common failure mode of
-  keyword-based dataset construction worth surfacing rather than hiding —
-  the fix (quoting the exact phrase, `all:"retrieval-augmented
-  generation"`, or restricting further by category) is straightforward
-  but wasn't applied retroactively to avoid re-fetching an already-working
-  corpus mid-evaluation.
-
-## Provider history
-
-This project has swapped LLM providers several times during development:
-Gemini (free tier, hit rate-limit friction during a 30-call benchmark
-generation run) -> Anthropic (hit a billing/insufficient-credits error,
-API requires prepaid credits unlike Gemini's free tier) -> back to Gemini
-(no credits required; rate limits are a pacing problem, not a volume
-problem, given this project's realistic call count — see below — so the
-existing retry/backoff logic was sufficient once re-applied).
-`src/generation/llm_client.py` centralizes the provider behind one
-`call_llm()` function so a further swap is a one-file change, not a
-find-and-replace across the codebase.
-
-**Call volume, for context:** a single query through the full pipeline
-costs 2-3 LLM calls (generate + groundedness check, plus an optional HyDE
-call); a failed groundedness check adds a retry (capped at
-`MAX_GENERATION_RETRIES`). A full 30-question evaluation run costs
-roughly 60-90 calls total. This is comfortably within any free tier's
-total volume — the friction hit earlier in development was entirely about
-requests-per-minute pacing (30 benchmark-generation calls fired
-back-to-back), which the retry/backoff logic in `llm_client.py` resolves.
+  intended phrase**, pulling in off-topic papers (~14% by a title audit
+  of the fetched corpus). Left unfiltered to surface this as a real
+  failure mode of keyword-based dataset construction rather than hide it.
+- **The semantic cache only catches near-duplicate rewordings, not general
+  paraphrases.** Calibration showed paraphrases and distinct questions
+  don't separate cleanly at a low threshold, so it's set conservative
+  (0.90) to avoid serving a wrong cached answer.
+- **No automatic fallback between LLM providers.** A rate limit fails fast
+  with a friendly error rather than silently retrying on the other
+  provider - switching is a deliberate, manual env var change.
 
 ## Tech stack
 
 - **Retrieval**: Qdrant Cloud (hybrid dense + sparse, native RRF fusion)
 - **Embeddings**: `BAAI/bge-small-en-v1.5` (dense, 384-dim), `Qdrant/bm25`
-  via `fastembed` (sparse)
+  via `fastembed` (sparse) - also reused for the semantic answer cache
 - **Reranking**: `BAAI/bge-reranker-base` (cross-encoder)
 - **Chunking**: LangChain `RecursiveCharacterTextSplitter`
-- **Orchestration**: LangGraph (`StateGraph` with a conditional retry edge)
-- **LLM**: Claude Haiku (Anthropic)
+- **Orchestration**: LangGraph (`StateGraph` with conditional routing +
+  retry edges)
+- **LLM**: Groq (`openai/gpt-oss-120b`) and Gemini (`gemini-3.6-flash`),
+  switchable via `LLM_PROVIDER`
 - **PDF processing**: PyMuPDF
-
-## Roadmap
-
-- [ ] Report real Hit Rate@k / MRR / groundedness-rate numbers from the
-      full benchmark run
-- [ ] Positional front-matter detection (better boilerplate filtering)
-- [ ] FastAPI backend exposing `/query`
-- [ ] Minimal frontend
-- [ ] Containerize + deploy
+- **API**: FastAPI, with per-IP rate limiting (`slowapi`)
+- **Frontend**: Streamlit (thin HTTP client over the API)
+- **Containerization**: Docker (single container, models baked in at build
+  time)
