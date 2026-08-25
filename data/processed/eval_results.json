@@ -1,7 +1,6 @@
 {
   "hit_rate_at_k": 1.0,
-  "mrr": 0.8277777777777777,
-  "groundedness_rate": 0.8,
+  "mrr": 0.861111111111111,
   "k": 20,
   "num_questions": 30,
   "per_question": [
@@ -15,13 +14,13 @@
       "question": "What primary tool and alternative does the Expert Mind system plan to use for its vector database storage?",
       "target": "2603.14541_19",
       "rank": 1,
-      "is_grounded": true
+      "is_grounded": false
     },
     {
       "question": "Why was BGE-M3 selected as the core embedding engine for dense retrieval?",
       "target": "2606.07924_12",
       "rank": 1,
-      "is_grounded": false
+      "is_grounded": true
     },
     {
       "question": "How does the Structured Evidence Assessment (SEA) module guide subsequent retrieval iterations?",
@@ -33,7 +32,7 @@
       "question": "Why does relying on rigid, static memory limit the reliability of LLMs for high-precision decision-making in dynamic environments?",
       "target": "2602.07525_2",
       "rank": 1,
-      "is_grounded": false
+      "is_grounded": true
     },
     {
       "question": "How do sparse and dense vector indices compare in terms of indexing speed, querying performance, and storage requirements?",
@@ -69,7 +68,7 @@
       "question": "Why does standard QA fine-tuning struggle with questions that require specialized or up-to-date knowledge?",
       "target": "2507.23334_14",
       "rank": 1,
-      "is_grounded": false
+      "is_grounded": true
     },
     {
       "question": "How are visual input and IMU data divided up to achieve 6DoF tracking in this system?",
@@ -80,14 +79,14 @@
     {
       "question": "What are the two main sub-problems that make up Business Document Information Extraction (BDIE)?",
       "target": "2405.20245_3",
-      "rank": 2,
+      "rank": 1,
       "is_grounded": true
     },
     {
       "question": "How are keyframe object detections stored to ensure efficient object-based retrieval?",
       "target": "2603.02888_12",
-      "rank": 2,
-      "is_grounded": true
+      "rank": 1,
+      "is_grounded": false
     },
     {
       "question": "What are the two primary ways RAG models handle retrieved passages during output generation?",
@@ -117,13 +116,13 @@
       "question": "How does the RAD framework retrieve the top\u2011K most similar audio samples after embedding a query, and what role do those retrieved samples play in determining authenticity?",
       "target": "2404.13892_25",
       "rank": 1,
-      "is_grounded": false
+      "is_grounded": true
     },
     {
       "question": "**Question:**  \nHow does the tool introduced in this paper let users generate a literature\u2011review segment with just a PDF upload?",
       "target": "2411.18583_11",
       "rank": 1,
-      "is_grounded": true
+      "is_grounded": false
     },
     {
       "question": "What peak GPU memory (VRAM) does the system use when the two heads share a single model?",
@@ -147,7 +146,7 @@
       "question": "What prior work has used videos in a retrieval\u2011augmented generation (RAG) context?",
       "target": "2405.17706_3",
       "rank": 1,
-      "is_grounded": false
+      "is_grounded": true
     },
     {
       "question": "Which Simpson\u2011diversity index values (A) are considered \u201chighly concentrated\u201d such that the Lyapunov condition fails and the lower bounds are omitted from the KL\u2011divergence plot?",
@@ -185,5 +184,6 @@
       "rank": 1,
       "is_grounded": true
     }
-  ]
+  ],
+  "groundedness_rate": 0.8666666666666667
 }

@@ -40,6 +40,8 @@ from src.graph.pipeline import run_query
 from src.indexing.qdrant_store import get_client
 from src.indexing.embed import get_dense_embedder, get_sparse_embedder
 from src.retrieval.rerank import get_reranker
+from src.generation.llm_client import LLMRateLimitedError
+from src.generation.semantic_cache import find_cached_result, store_result
 from api.schemas import QueryRequest, QueryResponse, SourceChunk, HealthResponse, ErrorResponse
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -89,6 +91,22 @@ app.add_middleware(
 )
 
 
+@app.exception_handler(LLMRateLimitedError)
+async def llm_rate_limited_handler(request: Request, exc: LLMRateLimitedError):
+    """The LLM provider itself is rate-limited — distinct from slowapi's
+    per-IP limiter above. call_llm() fails fast after one quick retry
+    (see src/generation/llm_client.py) rather than hanging on repeated
+    backoff, so this returns promptly instead of after several minutes."""
+    logger.warning("LLM provider rate-limited on %s: %s", request.url.path, exc)
+    return JSONResponse(
+        status_code=503,
+        content=ErrorResponse(
+            error="llm_rate_limited",
+            detail="The AI model is temporarily rate-limited. Please try again in a minute.",
+        ).model_dump(),
+    )
+
+
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
     """Catch-all: never leak a raw traceback to a public client."""
@@ -130,10 +148,23 @@ async def query(request: Request, body: QueryRequest):
     """
     Run a query through the full RAG pipeline: hybrid retrieve -> rerank
     -> generate -> groundedness check (with retry on ungrounded answers).
+
+    A close-enough repeat of a previously-answered (and grounded) question
+    is served from the semantic cache instead — see
+    src/generation/semantic_cache.py for why this only catches near-duplicate
+    rewordings rather than general paraphrases.
     """
     logger.info("Query received: %s (hyde=%s)", body.query[:100], body.use_hyde)
 
-    result = run_query(body.query, use_hyde=body.use_hyde)
+    cached = find_cached_result(body.query, body.use_hyde)
+    if cached is not None:
+        logger.info("Cache hit for: %s", body.query[:100])
+        result = cached
+        from_cache = True
+    else:
+        result = run_query(body.query, use_hyde=body.use_hyde)
+        store_result(body.query, body.use_hyde, result)
+        from_cache = False
 
     sources = [
         SourceChunk(
@@ -151,4 +182,5 @@ async def query(request: Request, body: QueryRequest):
         retry_count=result["retry_count"],
         groundedness_report=None if result["is_grounded"] else result["groundedness_report"],
         sources=sources,
+        from_cache=from_cache,
     )

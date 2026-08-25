@@ -38,6 +38,7 @@ class QueryResponse(BaseModel):
     retry_count: int
     groundedness_report: Optional[str] = None
     sources: List[SourceChunk]
+    from_cache: bool = False
 
 
 class HealthResponse(BaseModel):

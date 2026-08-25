@@ -1,1 +1,30 @@
 {"question": "Which open-source LLMs were used as standard RAG baselines for the English datasets?", "target": "2406.13249_27", "rank": 1, "is_grounded": true}
+{"question": "What primary tool and alternative does the Expert Mind system plan to use for its vector database storage?", "target": "2603.14541_19", "rank": 1, "is_grounded": false}
+{"question": "Why was BGE-M3 selected as the core embedding engine for dense retrieval?", "target": "2606.07924_12", "rank": 1, "is_grounded": true}
+{"question": "How does the Structured Evidence Assessment (SEA) module guide subsequent retrieval iterations?", "target": "2510.22344_9", "rank": 1, "is_grounded": true}
+{"question": "Why does relying on rigid, static memory limit the reliability of LLMs for high-precision decision-making in dynamic environments?", "target": "2602.07525_2", "rank": 1, "is_grounded": true}
+{"question": "How do sparse and dense vector indices compare in terms of indexing speed, querying performance, and storage requirements?", "target": "2404.07220_26", "rank": 1, "is_grounded": true}
+{"question": "Which specific brain regions light up when someone experiences cognitive dissonance?", "target": "2507.08804_15", "rank": 1, "is_grounded": true}
+{"question": "How does ReaLM-Retrieve manage to cut retrieval latency in half compared to IRCoT on the 3-hop reasoning example?", "target": "2604.26649_61", "rank": 6, "is_grounded": true}
+{"question": "How did the researchers define low-level versus high-level hallucinations in their pilot study?", "target": "2504.16883_12", "rank": 2, "is_grounded": true}
+{"question": "How can original identity information still leak through when using naive GAN-based face-swapping methods?", "target": "2604.23584_5", "rank": 1, "is_grounded": true}
+{"question": "Why does standard QA fine-tuning struggle with questions that require specialized or up-to-date knowledge?", "target": "2507.23334_14", "rank": 1, "is_grounded": true}
+{"question": "How are visual input and IMU data divided up to achieve 6DoF tracking in this system?", "target": "1907.06796_15", "rank": 2, "is_grounded": true}
+{"question": "What are the two main sub-problems that make up Business Document Information Extraction (BDIE)?", "target": "2405.20245_3", "rank": 1, "is_grounded": true}
+{"question": "How are keyframe object detections stored to ensure efficient object-based retrieval?", "target": "2603.02888_12", "rank": 1, "is_grounded": false}
+{"question": "What are the two primary ways RAG models handle retrieved passages during output generation?", "target": "2412.05838_24", "rank": 2, "is_grounded": true}
+{"question": "How far does the virtual room move vertically during the Elevation Distortion treatment?", "target": "2510.23840_33", "rank": 1, "is_grounded": true}
+{"question": "How can researchers evaluate whether using ChatGPT impacts students' critical thinking abilities?", "target": "2504.14689_12", "rank": 1, "is_grounded": false}
+{"question": "What are the main drawbacks of using mechanistic and perturbation\u2011based methods (like gradient\u2011based saliency, Jensen\u2011Shannon divergence, hidden\u2011state analysis, and perturbation analyses) to explain a model\u2019s output?", "target": "2606.28358_12", "rank": 1, "is_grounded": true}
+{"question": "How does the RAD framework retrieve the top\u2011K most similar audio samples after embedding a query, and what role do those retrieved samples play in determining authenticity?", "target": "2404.13892_25", "rank": 1, "is_grounded": true}
+{"question": "**Question:**  \nHow does the tool introduced in this paper let users generate a literature\u2011review segment with just a PDF upload?", "target": "2411.18583_11", "rank": 1, "is_grounded": false}
+{"question": "What peak GPU memory (VRAM) does the system use when the two heads share a single model?", "target": "2603.28554_14", "rank": 3, "is_grounded": true}
+{"question": "Which dataset mentioned in the excerpt provides 113,000 Wikipedia\u2011based question\u2011answer pairs that require multi\u2011document (multi\u2011hop) reasoning and include sentence\u2011level supporting facts?", "target": "2601.05264_85", "rank": 1, "is_grounded": true}
+{"question": "What performance gains does InF\u2011Embed deliver on embedding\u2011based models versus auto\u2011regressive language models in retrieval benchmarks?", "target": "2505.21439_53", "rank": 2, "is_grounded": true}
+{"question": "What prior work has used videos in a retrieval\u2011augmented generation (RAG) context?", "target": "2405.17706_3", "rank": 1, "is_grounded": true}
+{"question": "Which Simpson\u2011diversity index values (A) are considered \u201chighly concentrated\u201d such that the Lyapunov condition fails and the lower bounds are omitted from the KL\u2011divergence plot?", "target": "2504.09935_44", "rank": 3, "is_grounded": true}
+{"question": "Has the TOR framework been evaluated on any complex reasoning tasks other than multi\u2011hop question answering?", "target": "2404.14464_46", "rank": 1, "is_grounded": true}
+{"question": "What training objective does the autoregressive image generation model (Janus\u2011Pro) use to predict discrete image tokens?", "target": "2506.06962_13", "rank": 1, "is_grounded": true}
+{"question": "How does DeepRank treat query tokens that don\u2019t have an exact match in a document?", "target": "2102.11903_72", "rank": 1, "is_grounded": true}
+{"question": "What source did the authors use for their dataset, and how many Qur\u2019an surahs were actually selected for the preliminary study?", "target": "2503.16581_10", "rank": 1, "is_grounded": true}
+{"question": "What research approach did the authors use to identify the metacognitive support needs that guided the design of DeBiasMe?", "target": "2504.16770_16", "rank": 1, "is_grounded": true}

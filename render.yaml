@@ -14,3 +14,26 @@ services:
         sync: false
       - key: GROQ_API_KEY
         sync: false
+      - key: GOOGLE_API_KEY
+        sync: false
+      # sync: false (not a fixed `value:`) so switching this in the Render
+      # dashboard sticks across redeploys instead of being reset back to
+      # whatever render.yaml says on every git-triggered sync — that's the
+      # whole point of having two providers: flip this one value and
+      # restart, no code change or redeploy needed.
+      - key: LLM_PROVIDER
+        sync: false
+
+  - name: rag-frontend
+    type: web
+    runtime: python
+    plan: free
+    region: oregon          # must match rag-api's region for private networking to work
+    buildCommand: pip install -r streamlit_app/requirements.txt
+    startCommand: streamlit run streamlit_app/app.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true
+    envVars:
+      - key: RAG_API_URL
+        fromService:
+          name: rag-api
+          type: web
+          property: hostport

@@ -2,6 +2,9 @@
 The actual LangGraph StateGraph wiring.
 
 Flow:
+    classify_intent --(chitchat)--> END
+          |
+          v (research question)
     hyde -> retrieve -> rerank -> generate -> groundedness_check
                                        ^                |
                                        |                v
@@ -10,7 +13,13 @@ Flow:
                                                          v (grounded, or retries exhausted)
                                                         END
 
-The conditional edge after groundedness_check_node is the piece this
+classify_intent is a cheap first stop: chitchat (greetings, thanks, small
+talk) gets a canned reply and skips straight to END, never touching
+retrieval/reranking/generation/groundedness — see nodes.py's
+classify_intent_node and generation/intent.py for why that matters given
+this project's tight free-tier LLM quota.
+
+The conditional edge after groundedness_check_node is the other piece this
 project has been building toward: if the answer isn't grounded AND we
 haven't exhausted MAX_GENERATION_RETRIES, loop back to generate_node
 (which will produce a fresh answer from the same reranked_chunks) instead
@@ -28,12 +37,19 @@ from langgraph.graph import StateGraph, END
 from src.config import MAX_GENERATION_RETRIES
 from src.graph.state import RAGState, make_initial_state
 from src.graph.nodes import (
+    classify_intent_node,
     hyde_node,
     retrieve_node,
     rerank_node,
     generate_node,
     groundedness_check_node,
 )
+
+
+def _route_after_intent_check(state: RAGState) -> str:
+    """Conditional edge: chitchat skips straight to END, a real question
+    proceeds into the retrieval pipeline."""
+    return "end" if state["is_chitchat"] else "continue"
 
 
 def _route_after_groundedness_check(state: RAGState) -> str:
@@ -55,13 +71,22 @@ def build_graph():
     """Construct and compile the RAG StateGraph."""
     graph = StateGraph(RAGState)
 
+    graph.add_node("classify_intent", classify_intent_node)
     graph.add_node("hyde", hyde_node)
     graph.add_node("retrieve", retrieve_node)
     graph.add_node("rerank", rerank_node)
     graph.add_node("generate", generate_node)
     graph.add_node("groundedness_check", groundedness_check_node)
 
-    graph.set_entry_point("hyde")
+    graph.set_entry_point("classify_intent")
+    graph.add_conditional_edges(
+        "classify_intent",
+        _route_after_intent_check,
+        {
+            "continue": "hyde",
+            "end": END,
+        },
+    )
     graph.add_edge("hyde", "retrieve")
     graph.add_edge("retrieve", "rerank")
     graph.add_edge("rerank", "generate")

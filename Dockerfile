@@ -31,6 +31,13 @@ from src.indexing.embed import get_dense_embedder, get_sparse_embedder; \
 from src.retrieval.rerank import get_reranker; \
 get_dense_embedder(); get_sparse_embedder(); get_reranker()"
 
+# Only after the weights are baked in: forces every load to use the local
+# cache instead of checking huggingface.co for updates first. Without this,
+# each container start still makes ~dozens of live HTTP calls to HF Hub
+# (slower, and a real failure mode if HF Hub is unreachable at runtime) —
+# exactly what baking the weights into the image was meant to avoid.
+ENV HF_HUB_OFFLINE=1
+
 ENV PYTHONUNBUFFERED=1
 EXPOSE 8000
 

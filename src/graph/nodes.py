@@ -21,7 +21,32 @@ from src.retrieval.rerank import rerank
 from src.retrieval.hyde import generate_hyde_answer
 from src.generation.answer import generate_answer
 from src.generation.groundedness import check_groundedness
+from src.generation.intent import classify_intent
 from src.graph.state import RAGState
+
+
+def classify_intent_node(state: RAGState) -> dict:
+    """Classify state['query'] as chitchat vs a genuine research question.
+
+    Chitchat gets a canned reply and skips straight to END (see
+    pipeline.py's conditional edge after this node) — no retrieval,
+    reranking, generation, or groundedness check needed for "hi".
+    """
+    print(f"[classify_intent_node] Classifying: {state['query'][:80]}")
+
+    result = classify_intent(state["query"])
+
+    if result["is_chitchat"]:
+        print("[classify_intent_node] Chitchat — skipping the retrieval pipeline.\n")
+        return {
+            "is_chitchat": True,
+            "answer": result["reply"],
+            "is_grounded": True,
+            "retry_count": 0,
+        }
+
+    print("[classify_intent_node] Research question — proceeding to retrieval.\n")
+    return {"is_chitchat": False}
 
 
 def hyde_node(state: RAGState) -> dict:
